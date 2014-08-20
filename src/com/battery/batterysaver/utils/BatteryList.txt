@@ -1,0 +1,37 @@
+Sony Xperia LT26w
+Android: 4.0.4
+
+Info about Battery
+Location: /sys/devices/i2c-3/3-0055/power_supply/bq27520/
+
+-r--r--r--    1 root     root    4096 Mar  6 16:37 capacity									//37?
+-r--r--r--    1 root     root    4096 Mar  6 16:56 capacity_level							//Unkown
+-r--r--r--    1 root     root    4096 Mar  6 16:56 charge_full
+-r--r--r--    1 root     root    4096 Mar  6 16:56 charge_full_design					
+-r--r--r--    1 root     root    4096 Mar  6 16:56 current_avg								//Average Current
+-r--r--r--    1 root     root    4096 Mar  6 16:54 current_now								//Current Current
+lrwxrwxrwx    1 root     root       0 Mar  6 16:56 device -> ../../../3-0055
+-rw----r--    1 root     root    4096 Mar  6 16:56 fg_cmd
+--w-------    1 root     root    4096 Mar  6 16:56 fg_lock
+drwxr-xr-x    2 root     root       0 Mar  6 16:56 power
+-r--r--r--    1 root     root    4096 Mar  6 16:56 present
+lrwxrwxrwx    1 root     root       0 Mar  6 16:56 subsystem -> ../../../../../class/power_supply
+-r--r--r--    1 root     root    4096 Mar  6 16:56 type
+-rw-r--r--    1 root     root    4096 Mar  6 16:56 uevent									//Summary of Battery Profile, see App.1
+-r--r--r--    1 root     root    4096 Mar  6 16:56 voltage_max								//Maximal Voltage
+-r--r--r--    1 root     root    4096 Mar  6 16:56 voltage_min_design						//Minimal Voltage
+-r--r--r--    1 root     root    4096 Mar  6 16:37 voltage_now								//Current Voltage
+
+Appendix 1
+run "cat unevent" and get the following output:
+
+POWER_SUPPLY_NAME=bq27520
+POWER_SUPPLY_VOLTAGE_NOW=3871000
+POWER_SUPPLY_VOLTAGE_MAX=4200000
+POWER_SUPPLY_VOLTAGE_MIN_DESIGN=3000000
+POWER_SUPPLY_CAPACITY_LEVEL=Unknown
+POWER_SUPPLY_CURRENT_NOW=319000
+POWER_SUPPLY_CURRENT_AVG=303000
+POWER_SUPPLY_PRESENT=1
+POWER_SUPPLY_CHARGE_FULL=1900000
+POWER_SUPPLY_CHARGE_FULL_DESIGN=1900000
