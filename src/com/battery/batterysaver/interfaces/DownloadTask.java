@@ -16,4 +16,6 @@ public interface DownloadTask {
 	
 	public long getEffectiveTime();
 	
+	public double getProgress();
+	
 }

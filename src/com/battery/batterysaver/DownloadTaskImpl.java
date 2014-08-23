@@ -7,20 +7,15 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import android.content.Context;
-import android.os.Handler;
 import android.util.Log;
 
 import com.battery.batterysaver.interfaces.DownloadTask;
-import com.battery.batterysaver.learning.VoltageBetaModel;
+import com.battery.batterysaver.learning.ProgressiveVoltageModel;
 import com.battery.batterysaver.learning.VoltageModel;
 import com.battery.batterysaver.logger.LoggerCpu;
 import com.battery.batterysaver.logger.LoggerCurrent;
@@ -35,22 +30,52 @@ import edu.ntu.cltk.file.FileUtil;
 public class DownloadTaskImpl implements DownloadTask {
 
 	public static String TAG = DownloadTaskImpl.class.getName();
-	public static final long FILE_LIMIT = 1 << 29;	// 521M 
+	public static final long FILE_LIMIT = 1 << 29;	// 521M
 	
+	private String appId;
+	private String url;
+	private long duration;
+	private String folder;
+	
+	public String getAppId() {
+		return appId;
+	}
+
+	public void setAppId(String appId) {
+		this.appId = appId;
+	}
+
+	public String getUrl() {
+		return url;
+	}
+
+	public void setUrl(String url) {
+		this.url = url;
+	}
+
+	public long getDuration() {
+		return duration;
+	}
+
+	public void setDuration(long duration) {
+		this.duration = duration;
+	}
+
+	public String getFolder() {
+		return folder;
+	}
+
+	public void setFolder(String folder) {
+		this.folder = folder;
+	}
+
 	private LoggerBase cpuLogger = LoggerCpu.getInstance();
 	protected LoggerBase voltageLogger = LoggerVoltage.getInstance();
 	protected LoggerBase currentLogger = LoggerCurrent.getInstance();
 	private LoggerBase wifiLogger = LoggerWiFi.getInstance();
 	
-	protected List<HashMap<String, String>> tasks;
-	protected Handler mHandler;
-	private Context context;
-	
 	protected int status;
 	private int effectTime = 0;
-	protected String urlPath;
-	protected int downloadTime = 0;
-	protected int restTime = 0;
 	protected long startFrom = 0;
 	protected boolean firstDownloading = true;
 	
@@ -62,6 +87,7 @@ public class DownloadTaskImpl implements DownloadTask {
 	protected LoggerDownload downloadLogger = LoggerDownload.getInstance();
 	protected long byteDownloaded = 0;
 	protected long fileSize = 0;
+	protected long fileCapacity = 0;
 	protected VoltageModel vdm;
 	protected int logDownloadedByte = 0;
 	
@@ -79,7 +105,7 @@ public class DownloadTaskImpl implements DownloadTask {
 					vdm.startDownloadingInit();
 					startFuture = scheduledExecutor.schedule(startDownloadRn, 0, TimeUnit.MILLISECONDS);
 				}
-			}else if (status == DownloadTask.TASK_DOWNLOADING && firstDownloading == false){
+			}else if (status == DownloadTask.TASK_DOWNLOADING){
 				if (!vdm.working(Long.parseLong(volStr))){
 					// Do some initial work before the next resting
 					vdm.stopDownloadingInit();			
@@ -109,7 +135,7 @@ public class DownloadTaskImpl implements DownloadTask {
 
 		@Override
 		public void run() {
-			singleDownloadTask(urlPath);		
+			singleDownloadTask(url);		
 		}
 		
 	};
@@ -133,13 +159,16 @@ public class DownloadTaskImpl implements DownloadTask {
 		lb.log(tag);
 	}
 	
-	public DownloadTaskImpl(Handler mHandler, List listData, Context mContext) {
-		this.mHandler = mHandler;
-		this.tasks = listData;
-		this.context = mContext;
+	public DownloadTaskImpl(String appId, String url, long duration, String folder) {
+		
+		this.appId = appId;
+		this.url = url;
+		this.duration = duration;
+		this.folder = folder;
+		
 		scheduledExecutor = Executors.newScheduledThreadPool(2);
 		
-		vdm = new VoltageBetaModel();
+		vdm = new ProgressiveVoltageModel();
 	}
 
 	@Override
@@ -157,34 +186,17 @@ public class DownloadTaskImpl implements DownloadTask {
 
 	@Override
 	public void startDownload() {
-		HashMap<String, String> task = this.tasks.get(0);
 		
 		fileSize = 0;
-		
-		this.urlPath = task.get("url");
-		this.downloadTime = Integer.parseInt(task.get("download"));
-		this.restTime = Integer.parseInt(task.get("rest"));
 			
-		if (Constants.AUTO_MODE == 1){
-			/**************************/
-			/*	Dynamically decide    */
-			/**************************/
-			status = DownloadTask.TASK_DOWNLOADING;
-			startFuture = scheduledExecutor.schedule(startDownloadRn, 0, TimeUnit.MILLISECONDS);
-			pauseFuture = scheduledExecutor.schedule(pauseDownloadRn, downloadTime, TimeUnit.SECONDS);
-			loggingFuture = scheduledExecutor.scheduleAtFixedRate(controlRn, 0, Constants.LOGGING, TimeUnit.MILLISECONDS);
-		}else if (restTime > 0 ){
-			/**************************/
-			/*	Statically decide     */
-			/**************************/
-			startFuture = scheduledExecutor.scheduleAtFixedRate(startDownloadRn, 0, downloadTime+restTime, TimeUnit.SECONDS);
-			pauseFuture = scheduledExecutor.scheduleAtFixedRate(pauseDownloadRn, downloadTime, downloadTime+restTime, TimeUnit.SECONDS);
-			loggingFuture = scheduledExecutor.scheduleAtFixedRate(loggingRn, 0, Constants.LOGGING, TimeUnit.MILLISECONDS);
-		}else{
-			status = DownloadTask.TASK_DOWNLOADING;
-			startFuture = scheduledExecutor.schedule(startDownloadRn, 0, TimeUnit.SECONDS);
-			loggingFuture = scheduledExecutor.scheduleAtFixedRate(loggingRn, 0, Constants.LOGGING, TimeUnit.MILLISECONDS);
-		}
+		/**************************/
+		/*	Dynamically decide    */
+		/**************************/
+		status = DownloadTask.TASK_DOWNLOADING;
+		startFuture = scheduledExecutor.schedule(startDownloadRn, 0, TimeUnit.MILLISECONDS);
+		//pauseFuture = scheduledExecutor.schedule(pauseDownloadRn, downloadTime, TimeUnit.SECONDS);
+		loggingFuture = scheduledExecutor.scheduleAtFixedRate(controlRn, 0, Constants.LOGGING, TimeUnit.MILLISECONDS);
+		
 		startFrom = System.currentTimeMillis();
 	}
 	
@@ -201,11 +213,20 @@ public class DownloadTaskImpl implements DownloadTask {
 				URL url = new URL(urlPath);
 				HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
 				urlConnection.setConnectTimeout(1000 * 60 * 5);
+				
+				if (fileCapacity == 0){
+					fileCapacity = urlConnection.getContentLength();
+					if (fileCapacity == 0){
+						Log.i(TAG, String.format("The file %s is an empty file", url));
+						return;
+					}
+				}
+				
+				urlConnection.setRequestProperty("RANGE", String.format("byte=%d-%d", fileSize, fileCapacity));
 				urlConnection.connect();
 				is = urlConnection.getInputStream();
-				long contentLength = urlConnection.getContentLength();
-				fileName = Constants.DEFAULT_STORE_DIRECTORY + UUID.randomUUID() + Utils.guessName(urlPath);
-				fos = new FileOutputStream(fileName);
+				fileName = folder + Utils.guessName(urlPath);
+				fos = new FileOutputStream(fileName, true /*append*/);
 				byte data[] = new byte[1024];
 				int len = 0;
 				long progress = 0;
@@ -214,8 +235,8 @@ public class DownloadTaskImpl implements DownloadTask {
 					byteDownloaded += len;
 					fileSize += len;
 					
-					if (progress != byteDownloaded * 100 / contentLength){
-						progress = byteDownloaded * 100 / contentLength;
+					if (progress != byteDownloaded * 100 / fileCapacity){
+						progress = byteDownloaded * 100 / fileCapacity;
 					}
 					fos.write(data, 0, len);
 					if (fileSize > 1<<20)	fos.flush();
@@ -254,10 +275,13 @@ public class DownloadTaskImpl implements DownloadTask {
 
 	@Override
 	public long getEffectiveTime() {
-		if (restTime <= 0 ){
-			return (System.currentTimeMillis() - startFrom)/1000;
-		}
 		return this.effectTime;
+	}
+
+	@Override
+	public double getProgress() {
+		if (fileCapacity == 0)	return 0;
+		return fileSize / fileCapacity * 1.0;
 	}
 
 }
